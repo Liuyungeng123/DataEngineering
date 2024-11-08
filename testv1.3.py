@@ -18,10 +18,12 @@ from lagent.agents.react import ReAct
 from lagent.llms import GPTAPI
 from lagent.llms.huggingface import HFTransformerCasualLM
 
-
 from lagent.actions import BaseAction
 
 from nltk.sentiment import SentimentIntensityAnalyzer
+
+import requests
+from bs4 import BeautifulSoup
 
 sentiment_analyzer = SentimentIntensityAnalyzer()
 
@@ -140,8 +142,7 @@ def create_user(username, password, others_preference):
             user = c.lastrowid
             print(others_preference)
             for preference in others_preference:
-                # unknow: cannot decrypt success after if I encrypt "preference"
-                encrypt_preference = preference
+                encrypt_preference = encrypt_data(preference)
                 c.execute(
                     "INSERT INTO user_preference (user_id, preference) VALUES (?, ?)",
                     (user, encrypt_preference),
@@ -154,11 +155,13 @@ def create_user(username, password, others_preference):
 
 def get_user_preference(user_id):
     c.execute(
-        "SELECT preference FROM user_preference WHERE user_id = ?",
+        "SELECT user_id, preference FROM user_preference WHERE user_id = ?",
         (user_id,),
     )
     user_preference = c.fetchall()
-    return [preference[0] for preference in user_preference]
+    return [
+        (user_id, decrypt_data(preference)) for user_id, preference in user_preference
+    ]
 
 
 def verify_user(username, password):
@@ -532,11 +535,23 @@ def chat_page():
             del st.session_state.button_clicked_4_login
             del st.session_state.button_clicked_4_register
             del st.session_state.current_conversation_use_user_preferences
+            del st.session_state.current_conversation_id
             st.rerun()
 
         st.write("Create New Chat")
-        system_prompt_setting = "You are a helpful assistant"
-        temperature_setting = 0.7
+
+        # fix: change the display of "system_prompt_setting" and "temperature_setting"
+        if "current_conversation_id" not in st.session_state:
+            # use default value
+            current_settings = get_conversation_settings(-1)
+        else:
+            # load base on st.session_state.current_conversation_id
+            current_settings = get_conversation_settings(
+                st.session_state.current_conversation_id
+            )
+
+        system_prompt_setting = current_settings["system_prompt"]
+        temperature_setting = float(current_settings["temperature"])
 
         system_prompt = st.text_area(
             "Set up AI persona (System Prompt):",
@@ -603,6 +618,9 @@ def chat_page():
     current_settings = get_conversation_settings(
         st.session_state.current_conversation_id
     )
+    # update current_settings: mainly if a new chat has been created
+    system_prompt_setting = current_settings["system_prompt"]
+    temperature_setting = current_settings["temperature"]
 
     model_name, uploaded_file = st.session_state["ui"].setup_sidebar()
 
@@ -615,7 +633,7 @@ def chat_page():
             model=model_name,
             openai_api_key=api_key,
             openai_api_base=inference_server_url,
-            temperature=current_settings["temperature"],
+            temperature=temperature_setting,
         )
 
     # if user_perferences is not empty, we append preferences information as prefix
@@ -626,7 +644,7 @@ def chat_page():
         user_first_msg_prefix = ""
         if len(user_perferences) > 0:
             topic = ""
-            for perferences in user_perferences:
+            for user_id, perferences in user_perferences:
                 topic += perferences + ","
             # remove last char
             topic = topic[:-1]
@@ -681,28 +699,47 @@ def chat_page():
         )
         st.session_state["ui"].render_user(user_input)
 
-        search_keyword_list = ["search", "find", "tell me"]
+        # construct the searched link and display to user
+        result_link = ""
+        # some keyword that will trigger the search function
+        search_keyword_list = ["search", "find", "what"]
         if any(substring in user_input.lower() for substring in search_keyword_list):
             search_results = google_search(user_input)
             search_summary = search_results.get("items", [])
-            link = ""
+            web_summary = ""
+            # prepare part of the response that append at the response.
+            result_link = "You can find more infomration in: "
             for result in search_summary:
-                link += result["link"] + ";"
+                web_content = fetch_web_content(result["link"])
+                # some response may not be 200
+                if web_content is not None:
+                    # print("Web Content:" + web_content)
+                    # get summarized_content
+                    summarized_content = summarize_content(web_content)
+                    # prepare content that will use as part of user input
+                    web_summary += summarized_content
+                    result_link += result["link"] + "; "
+                    # print("Link:" + result["link"])
+                    # print("summarized_content:" + summarized_content)
 
-            # LLM cannot read the url content
+            # user_input += "In additional, please also base on the following information to provide information: " + web_summary
+            # tell LLM that it should provide information base on summary
             user_input += (
-                "Base on the content under following url to provide suggestion: " + link
+                "Consider the following content to provide information: " + web_summary
             )
+
         if st.session_state.current_conversation_use_user_preferences == True:
             user_preference = get_user_preference(st.session_state.user_id)
         else:
             user_preference = []
 
         bot_response = get_bot_response(
-            user_input, history, llm, current_settings["system_prompt"], user_preference
+            user_input, history, llm, system_prompt_setting, user_preference
         )
 
-        bot_response_with_response_prefix = response_prefix + bot_response
+        bot_response_with_response_prefix = (
+            response_prefix.strip() + bot_response + result_link.strip()
+        )
 
         save_message(
             st.session_state.user_id,
@@ -722,7 +759,7 @@ def get_sentiment_score(text):
 # for web search function
 google_search_url = "https://www.googleapis.com/customsearch/v1"
 google_api_key = "AIzaSyADcVI9ooWqFzbvp0SHeWSIR3GCu-6nwEo"
-search_engine_id = "41100463dc2ae4b63"
+search_engine_id = "41100463dc2ae4b63"  # search for every date is limited
 
 
 def google_search(query):
@@ -753,6 +790,39 @@ def get_response_prefix(sentiment_score):
     else:
         response_prefix = ""
     return response_prefix
+
+
+# get content from url
+def fetch_web_content(url):
+    response = requests.get(url)
+    if response.status_code == 200:
+        soup = BeautifulSoup(response.text, "html.parser")
+        return soup.get_text()
+    else:
+        return None
+
+
+#
+import nltk
+from sumy.parsers.plaintext import PlaintextParser
+from sumy.nlp.tokenizers import Tokenizer
+from sumy.summarizers.lsa import LsaSummarizer
+
+# Ensure the punkt tokenizer is downloaded
+# for safe: python -m nltk.downloader all
+nltk.download("punkt")
+
+
+# smmary the content
+def summarize_content(content, num_sentences=2):
+    # print('***summarize_content***' + content)
+    parser = PlaintextParser.from_string(content, Tokenizer("english"))
+    summarizer = LsaSummarizer()
+    summary = summarizer(parser.document, 2)  # Summarize into 2 sentences
+    summary_text = " ".join([str(sentence) for sentence in summary])
+    summary_sentences = nltk.tokenize.sent_tokenize(summary_text)
+    print(summary_sentences)
+    return " ".join(summary_sentences[:num_sentences])
 
 
 def main():
