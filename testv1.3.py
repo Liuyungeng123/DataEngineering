@@ -30,6 +30,9 @@ sentiment_analyzer = SentimentIntensityAnalyzer()
 import requests
 
 
+import networkx as nx
+import matplotlib.pyplot as plt
+
 # 初始化加密密钥
 KEY_FILE = "encryption_key.key"
 if os.path.exists(KEY_FILE):
@@ -322,6 +325,10 @@ user_preferences = [
     "Gardening",
     "Photography",
 ]
+
+# Update specific edges with different colors
+colors_red = "red"
+# edge_colors = {(1, 2.2): "blue", (3, 4): "red"}
 
 
 def login_page():
@@ -654,6 +661,11 @@ def chat_page():
                 + ". Provide information base of my interested topic."
             )
             print(user_first_msg_prefix)
+            edge_colors[(2.2, 2.1)] = colors_red
+            edge_colors[(2.1, 3)] = colors_red
+        else:
+            edge_colors[(2.2, 2.3)] = colors_red
+            edge_colors[(2.3, 3)] = colors_red
         isFirstMessage = True
         for msg, is_user in history:
             if is_user:
@@ -686,9 +698,19 @@ def chat_page():
     user_input = st.chat_input("Input your message:")
 
     if user_input:
+        # remove previous edge colour
+        edge_colors = {}
         # get_sentiment_score for user response
+        edge_colors[(9, 10)] = colors_red
         sentiment_score = get_sentiment_score(user_input)
+        edge_colors[(10, 11.2)] = colors_red
         response_prefix = get_response_prefix(sentiment_score)
+        if response_prefix.strip() == "":
+            edge_colors[(11.2, 11.3)] = colors_red
+            edge_colors[(11.3, 12)] = colors_red
+        else:
+            edge_colors[(11.2, 11.1)] = colors_red
+            edge_colors[(11.1, 12)] = colors_red
 
         save_message(
             st.session_state.user_id,
@@ -699,23 +721,31 @@ def chat_page():
         )
         st.session_state["ui"].render_user(user_input)
 
+        if st.session_state.current_conversation_use_user_preferences == True:
+            user_preference = get_user_preference(st.session_state.user_id)
+        else:
+            user_preference = []
+
         # construct the searched link and display to user
         result_link = ""
         # some keyword that will trigger the search function
         search_keyword_list = ["search", "find", "what"]
         if any(substring in user_input.lower() for substring in search_keyword_list):
             search_results = google_search(user_input)
+            edge_colors[(3, 4)] = colors_red
             search_summary = search_results.get("items", [])
             web_summary = ""
             # prepare part of the response that append at the response.
             result_link = "You can find more infomration in: "
             for result in search_summary:
                 web_content = fetch_web_content(result["link"])
+                edge_colors[(4, 5)] = colors_red
                 # some response may not be 200
                 if web_content is not None:
                     # print("Web Content:" + web_content)
                     # get summarized_content
                     summarized_content = summarize_content(web_content)
+                    edge_colors[(5, 6)] = colors_red
                     # prepare content that will use as part of user input
                     web_summary += summarized_content
                     result_link += result["link"] + "; "
@@ -724,19 +754,19 @@ def chat_page():
 
             # user_input += "In additional, please also base on the following information to provide information: " + web_summary
             # tell LLM that it should provide information base on summary
+            edge_colors[(6, 7)] = colors_red
             user_input += (
                 "Consider the following content to provide information: " + web_summary
             )
-
-        if st.session_state.current_conversation_use_user_preferences == True:
-            user_preference = get_user_preference(st.session_state.user_id)
+            edge_colors[(7, 8)] = colors_red
+            # print("****modified prompt****" + user_input)
         else:
-            user_preference = []
+            edge_colors[(3, 8)] = colors_red
 
         bot_response = get_bot_response(
             user_input, history, llm, system_prompt_setting, user_preference
         )
-
+        edge_colors[(8, 9)] = colors_red
         bot_response_with_response_prefix = (
             response_prefix.strip() + bot_response + result_link.strip()
         )
@@ -749,7 +779,9 @@ def chat_page():
             0,
         )
         st.session_state["ui"].render_assistant(bot_response_with_response_prefix)
-        st.rerun()
+        # print("before show_decision_making_grpah")
+        show_decision_making_grpah(edge_colors)
+        # st.rerun()
 
 
 def get_sentiment_score(text):
@@ -815,14 +847,196 @@ nltk.download("punkt")
 
 # smmary the content
 def summarize_content(content, num_sentences=2):
-    # print('***summarize_content***' + content)
+    # print("***summarize_content***" + content)
     parser = PlaintextParser.from_string(content, Tokenizer("english"))
     summarizer = LsaSummarizer()
     summary = summarizer(parser.document, 2)  # Summarize into 2 sentences
     summary_text = " ".join([str(sentence) for sentence in summary])
     summary_sentences = nltk.tokenize.sent_tokenize(summary_text)
-    print(summary_sentences)
+    # print("***summary_sentences***")
+    # print(summary_sentences)
     return " ".join(summary_sentences[:num_sentences])
+
+
+# for visual the flow
+def show_decision_making_grpah(edge_colors):
+    # print("show_decision_making_grpah")
+    # Create a directed graph
+    G = nx.DiGraph()
+
+    # Add nodes with IDs
+    nodes = {
+        1: "User Input",
+        2.1: "Add Preference",
+        2.2: "Load User preferences",
+        2.3: "[Nothing]",
+        3: "Need Web Search",
+        4: "Get searched URL",
+        5: "Extract content",
+        6: "Content Summarization",
+        7: "Update prompt with summarized content",
+        8: "Pass Prompt to LLM (Include history)",
+        9: "Get Response from LLM",
+        10: "Get sentiment score from User input",
+        11.1: "Add prefix to response",
+        11.2: "Is neutral",
+        11.3: "[Nothing]",
+        12: "Show final response to user",
+    }
+
+    label_Y = "Y"
+    label_N = "N"
+
+    # Add edges using node IDs
+    edges = [
+        (1, 2.2, {"label": ""}),
+        (2.2, 2.1, {"label": label_Y}),
+        (2.2, 2.3, {"label": label_N}),
+        (2.1, 3, {"label": ""}),
+        (2.3, 3, {"label": ""}),
+        (3, 4, {"label": label_Y}),
+        (4, 5, {"label": ""}),
+        (5, 6, {"label": ""}),
+        (6, 7, {"label": ""}),
+        (7, 8, {"label": ""}),
+        (3, 8, {"label": label_N}),
+        (8, 9, {"label": ""}),
+        (9, 10, {"label": ""}),
+        (10, 11.2, {"label": ""}),
+        (11.2, 11.1, {"label": label_Y}),
+        (11.2, 11.3, {"label": label_N}),
+        (11.1, 12, {"label": ""}),
+        (11.3, 12, {"label": ""}),
+    ]
+
+    G.add_edges_from(edges)
+
+    # Fix positions for the nodes using IDs
+    pos = {
+        1: (1, 65),
+        2.1: (0, 55),
+        2.2: (1, 60),
+        2.3: (2, 55),
+        3: (1, 50),
+        4: (0.5, 45),
+        5: (0.5, 40),
+        6: (0.5, 35),
+        7: (0.5, 30),
+        8: (1, 25),
+        9: (1, 20),
+        10: (1, 15),
+        11.1: (0.5, 5),
+        11.2: (1, 10),
+        11.3: (2, 5),
+        12: (1, 0),
+    }
+
+    # Define custom node shapes and sizes
+    node_prop_Circle = {"shape": "o", "size": 900}
+    node_prop_Square = {"shape": "s", "size": 900}
+    node_prop_Diamond = {"shape": "D", "size": 900}
+
+    node_properties = {
+        1: node_prop_Circle,
+        2.1: node_prop_Square,
+        2.2: node_prop_Diamond,
+        2.3: node_prop_Square,
+        3: node_prop_Diamond,
+        4: node_prop_Square,
+        5: node_prop_Square,
+        6: node_prop_Square,
+        7: node_prop_Square,
+        8: node_prop_Square,
+        9: node_prop_Square,
+        10: node_prop_Square,
+        11.1: node_prop_Square,
+        11.2: node_prop_Diamond,
+        11.3: node_prop_Square,
+        12: node_prop_Square,
+    }
+
+    # Calculate axis limits based on node positions
+    all_x = [x for x, y in pos.values()]
+    all_y = [y for x, y in pos.values()]
+
+    x_margin = (max(all_x) - min(all_x)) * 0.1
+    y_margin = (max(all_y) - min(all_y)) * 0.1
+
+    x_lim = (min(all_x) - x_margin, max(all_x) + x_margin)
+    y_lim = (min(all_y) - y_margin, max(all_y) + y_margin)
+
+    # Create a figure
+    plt.figure(figsize=(8, 6))
+
+    # Adjust subplot parameters to fit the plot within the display area
+    # plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
+
+    # Draw the nodes with different shapes and sizes
+    for node_id, properties in node_properties.items():
+        if properties["shape"] == "s":
+            nx.draw_networkx_nodes(
+                G,
+                pos,
+                nodelist=[node_id],
+                node_shape=properties["shape"],
+                node_size=properties["size"],
+                node_color="none",  # Transparent fill
+                edgecolors="none",  # No border ax=ax
+            )
+        else:
+            nx.draw_networkx_nodes(
+                G,
+                pos,
+                nodelist=[node_id],
+                node_shape=properties["shape"],
+                node_size=properties["size"],
+                # ax=ax,
+            )
+
+    # Set default edge color to black
+    default_edge_color = "black"
+    nx.draw_networkx_edges(
+        G,
+        pos,
+        edge_color=default_edge_color,
+        arrowstyle="->",
+        arrowsize=20,  # ax=ax
+    )
+
+    for edge, color in edge_colors.items():
+        nx.draw_networkx_edges(
+            G,
+            pos,
+            edgelist=[edge],
+            edge_color=color,
+            arrowstyle="->",
+            arrowsize=20,
+            # ax=ax,
+        )
+
+    # Draw the edge labels
+    edge_labels = {(u, v): d["label"] for u, v, d in G.edges(data=True)}
+    nx.draw_networkx_edge_labels(
+        G,
+        pos,
+        edge_labels=edge_labels,  # ax=ax
+    )
+
+    # Draw the labels for nodes using their original names
+    nx.draw_networkx_labels(
+        G,
+        pos,
+        labels=nodes,
+        font_size=8,
+        font_family="sans-serif",  # ax=ax
+    )
+
+    # Show the graph
+    # plt.show()
+
+    plt.title("Chatbot’s decision-making process")
+    plt.axis("off")
+    st.pyplot(plt)
 
 
 def main():
