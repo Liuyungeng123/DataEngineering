@@ -15,4 +15,6 @@ pip install sumy
 python -c "import nltk; nltk.download('punkt')"
 python -m nltk.downloader all
 
+pip install matplotlib
+
 streamlit run testv1.X.py
