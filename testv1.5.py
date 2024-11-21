@@ -788,8 +788,9 @@ def chat_page():
         # some keyword that will trigger the search function
         search_keyword_list = ["search", "find", "what"]
         if any(substring in user_input.lower() for substring in search_keyword_list):
-            search_results = google_search(user_input)
-            search_summary = search_results.get("items", [])
+            # search_results = google_search(user_input)
+            # search_summary = search_results.get("items", [])
+            search_results = duck_
             web_summary = ""
             # prepare part of the response that append at the response.
             result_link = "You can find more infomration in: "
@@ -853,7 +854,15 @@ def chat_page():
 def get_sentiment_score(text):
     return sentiment_analyzer.polarity_scores(text)["compound"]
 
+from duckduckgo_search import DDGS
 
+def duck_search(query):
+    responses = {}
+    with DDGS() as ddgs:
+        for response in ddgs.text(query, region='wt-wt', safesearch='off', timelimit='y', max_results=3):
+            responses.append(response)
+    return responses
+    
 # for web search function
 google_search_url = "https://www.googleapis.com/customsearch/v1"
 google_api_key = "AIzaSyADcVI9ooWqFzbvp0SHeWSIR3GCu-6nwEo"
