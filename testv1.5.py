@@ -7,6 +7,7 @@ from langchain.chat_models import ChatOpenAI
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
 import os
 import copy
+import asyncio
 import os
 from datetime import datetime
 
@@ -28,7 +29,9 @@ from bs4 import BeautifulSoup
 sentiment_analyzer = SentimentIntensityAnalyzer()
 
 import requests
-
+# import nltk
+# nltk.download("punkt")
+# nltk.download('vader_lexicon')
 
 # 初始化加密密钥
 KEY_FILE = "encryption_key.key"
@@ -786,15 +789,20 @@ def chat_page():
         # construct the searched link and display to user
         result_link = ""
         # some keyword that will trigger the search function
-        search_keyword_list = ["search", "find", "what"]
+        search_keyword_list = ["search", "find", "what", "how", "why", "when", "where"]
         if any(substring in user_input.lower() for substring in search_keyword_list):
             # search_results = google_search(user_input)
             # search_summary = search_results.get("items", [])
-            search_results = duck_
+            try:
+                search_results = asyncio.run(duck_search(user_input)) 
+            # or
+            except:
+                search_results = requests.post("http://localhost:8000/mindsearch", data={"query": user_input}).json()
+            
             web_summary = ""
             # prepare part of the response that append at the response.
             result_link = "You can find more infomration in: "
-            for result in search_summary:
+            for result in search_results:
                 web_content = fetch_web_content(result["link"])
                 # some response may not be 200
                 if web_content is not None:
@@ -812,6 +820,8 @@ def chat_page():
             user_input += (
                 "Consider the following content to provide information: " + web_summary
             )
+            user_input += (""" you are an information summary assistant. According to the information I provide, you need to provide a summary of the information. """ + str(search_results))
+
 
         if st.session_state.current_conversation_use_user_preferences == True:
             user_preference = get_user_preference(st.session_state.user_id)
@@ -856,11 +866,12 @@ def get_sentiment_score(text):
 
 from duckduckgo_search import DDGS
 
-def duck_search(query):
+async def duck_search(query):
     responses = {}
     with DDGS() as ddgs:
-        for response in ddgs.text(query, region='wt-wt', safesearch='off', timelimit='y', max_results=3):
-            responses.append(response)
+        for i, response in enumerate(ddgs.text(query, region='wt-wt', safesearch='off', timelimit='y', max_results=3)):
+            response[i] = response
+    # st.write
     return responses
     
 # for web search function
@@ -910,14 +921,14 @@ def fetch_web_content(url):
 
 
 #
-import nltk
+# import nltk
 from sumy.parsers.plaintext import PlaintextParser
 from sumy.nlp.tokenizers import Tokenizer
 from sumy.summarizers.lsa import LsaSummarizer
 
 # Ensure the punkt tokenizer is downloaded
 # for safe: python -m nltk.downloader all
-nltk.download("punkt")
+# nltk.download("punkt")
 
 
 # smmary the content
