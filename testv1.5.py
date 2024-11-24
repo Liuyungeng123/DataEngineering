@@ -459,11 +459,11 @@ class StreamlitUI:
             "Model Selection", options=["Doubao-Pro-32k", "InternLM2-20B"]
         )
 
-        if st.sidebar.button("清空对话", key="clear"):
-            self.session_state.clear_state()
-        uploaded_file = st.sidebar.file_uploader(
-            "上传文件", type=["png", "jpg", "jpeg", "mp4", "mp3", "wav"]
-        )
+        # if st.sidebar.button("清空对话", key="clear"):
+        #     self.session_state.clear_state()
+        # uploaded_file = st.sidebar.file_uploader(
+        #     "上传文件", type=["png", "jpg", "jpeg", "mp4", "mp3", "wav"]
+        # )
         return model_name, uploaded_file
 
     def init_model(self, option):
