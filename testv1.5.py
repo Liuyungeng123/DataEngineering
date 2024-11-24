@@ -397,7 +397,7 @@ def login_page():
             others_preference = st.text_area("Enter your preference here:")
             st.write(
                 """**Consent Statement**
-We value your privacy and are committed to protecting your personal data. By ticking the box below and clicking 'Register', you consent to our collection, use, and storage of your personal data in accordance with our Privacy Policy. This data will be used solely for the purpose of [specify purpose, e.g., improving our services, sending newsletters, etc.]. You have the right to withdraw your consent at any time by contacting us at [contact information]."""
+We value your privacy and are committed to protecting your personal data. By ticking the box below and clicking 'Register', you consent to our collection, use, and storage of your personal data in accordance with our Privacy Policy. This data will be used solely for the purpose of improving our services. You have the right to withdraw your consent at any time by contacting us at [Cityu: Data Engineering - Group 5 member]."""
             )
             st.session_state.consent_checkbox = st.checkbox(
                 "I agree to the collection, use, and storage of my personal data as described above."
@@ -621,6 +621,13 @@ def chat_page():
         with col2:
             use_user_preferences_selection = st.checkbox("(with user preferences)")
 
+        search_engine = st.selectbox(
+            "Search Engine",
+            options=["DuckDuckGo", "Google", 'MindSearch'],
+            index=0,
+            help="Select the search engine to use for additional information",
+        )
+
         if create_new_chat:
             new_conv_id = create_conversation(
                 st.session_state.user_id, use_user_preferences_selection
@@ -793,10 +800,12 @@ def chat_page():
         if any(substring in user_input.lower() for substring in search_keyword_list):
             # search_results = google_search(user_input)
             # search_summary = search_results.get("items", [])
-            try:
+            if search_engine == "Google":
+                search_results = google_search(user_input)
+                search_results = search_results.get("items", [])
+            elif search_engine == "DuckDuckGo":
                 search_results = asyncio.run(duck_search(user_input)) 
-            # or
-            except:
+            elif search_engine == "MindSearch":
                 search_results = requests.post("http://localhost:8000/mindsearch", data={"query": user_input}).json()
             
             web_summary = ""
