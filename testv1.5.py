@@ -29,9 +29,9 @@ from bs4 import BeautifulSoup
 sentiment_analyzer = SentimentIntensityAnalyzer()
 
 import requests
-# import nltk
-# nltk.download("punkt")
-# nltk.download('vader_lexicon')
+import nltk
+nltk.download("punkt")
+nltk.download('vader_lexicon')
 
 # 初始化加密密钥
 KEY_FILE = "encryption_key.key"
