@@ -716,7 +716,7 @@ def chat_page():
     system_prompt_setting = current_settings["system_prompt"]
     temperature_setting = current_settings["temperature"]
 
-    model_name, uploaded_file = st.session_state["ui"].setup_sidebar()
+    model_name = st.session_state["ui"].setup_sidebar()
 
     if model_name == "Doubao-Pro-32k":
         inference_server_url = "https://ark.cn-beijing.volces.com/api/v3"
