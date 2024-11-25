@@ -464,7 +464,7 @@ class StreamlitUI:
         # uploaded_file = st.sidebar.file_uploader(
         #     "上传文件", type=["png", "jpg", "jpeg", "mp4", "mp3", "wav"]
         # )
-        return model_name, uploaded_file
+        return model_name
 
     def init_model(self, option):
         """Initialize the model based on the selected option."""
