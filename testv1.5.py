@@ -456,13 +456,7 @@ class StreamlitUI:
     def setup_sidebar(self):
         """Setup the sidebar for model and plugin selection."""
         model_name = st.sidebar.selectbox(
-            "Model Selection", options=["Doubao-Pro-32k", "InternLM2-20B"]
-        )
-
-        if st.sidebar.button("清空对话", key="clear"):
-            self.session_state.clear_state()
-        uploaded_file = st.sidebar.file_uploader(
-            "上传文件", type=["png", "jpg", "jpeg", "mp4", "mp3", "wav"]
+            "Model Selection", options=["Doubao-Pro-32k", "InternLM2-20B", "Qwen-14B-chat"]
         )
         return model_name, uploaded_file
 
@@ -722,6 +716,12 @@ def chat_page():
             openai_api_base=inference_server_url,
             temperature=temperature_setting,
         )
+    elif model_name == 'InternLM2-20B':
+        llm = HFTransformers(InternLM_path) # your path
+    elif model_name == 'Qwen-14B-chat':
+        tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True) # your path
+        llm = AutoModelForCausalLM.from_pretrained(model_path, device_map="auto", trust_remote_code=True).eval() # your path
+
 
     # if user_perferences is not empty, we append preferences information as prefix
     def get_bot_response(message, history, llm, system_prompt, user_perferences):
