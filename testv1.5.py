@@ -684,7 +684,7 @@ def chat_page():
     # Check if the feedback form should be shown
     if st.session_state.get("show_feedback_form", False):
         st.write("---")
-        st.write("📝 **Provide Your Feedback**")
+        st.write(" **Provide Your Feedback**")
         
         # Simple feedback form
         feedback = st.text_area("Your Feedback", height=100)
@@ -970,7 +970,7 @@ def save_feedback(user_id, conversation_id, message_id, rating, comment):
 
 def render_feedback_section(message_id):
     st.write("---") 
-    st.write("📝 **Feedback for this response**") 
+    st.write(" **Feedback for this response**") 
     
     print("Rendering feedback section for message:", message_id)
     
